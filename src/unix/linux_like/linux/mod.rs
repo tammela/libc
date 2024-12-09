@@ -2,9 +2,7 @@
 
 use core::mem::size_of;
 
-use crate::{
-    c_double, c_int, c_longlong, c_short, c_uchar, c_uint, c_ushort, c_void, size_t, ssize_t,
-};
+use crate::prelude::*;
 
 pub type useconds_t = u32;
 pub type dev_t = u64;
@@ -328,7 +326,21 @@ s! {
     }
 
     pub struct input_event {
+        // FIXME(1.0): Change to the commented variant, see https://github.com/rust-lang/libc/pull/4148#discussion_r1857511742
+        #[cfg(any(target_pointer_width = "64", not(linux_time_bits64)))]
         pub time: crate::timeval,
+        // #[cfg(any(target_pointer_width = "64", not(linux_time_bits64)))]
+        // pub input_event_sec: time_t,
+        // #[cfg(any(target_pointer_width = "64", not(linux_time_bits64)))]
+        // pub input_event_usec: suseconds_t,
+        // #[cfg(target_arch = "sparc64")]
+        // _pad1: c_int,
+        #[cfg(all(target_pointer_width = "32", linux_time_bits64))]
+        pub input_event_sec: c_ulong,
+
+        #[cfg(all(target_pointer_width = "32", linux_time_bits64))]
+        pub input_event_usec: c_ulong,
+
         pub type_: __u16,
         pub code: __u16,
         pub value: __s32,
@@ -477,9 +489,9 @@ s! {
         // will probably need including here. tsidea, skrap
         // QNX (NTO) platform does not define these fields
         #[cfg(not(any(target_env = "uclibc", target_os = "nto")))]
-        pub dlpi_adds: crate::c_ulonglong,
+        pub dlpi_adds: c_ulonglong,
         #[cfg(not(any(target_env = "uclibc", target_os = "nto")))]
-        pub dlpi_subs: crate::c_ulonglong,
+        pub dlpi_subs: c_ulonglong,
         #[cfg(not(any(target_env = "uclibc", target_os = "nto")))]
         pub dlpi_tls_modid: size_t,
         #[cfg(not(any(target_env = "uclibc", target_os = "nto")))]
@@ -1213,6 +1225,83 @@ s! {
     }
 
     // linux/if_xdp.h
+
+    pub struct sockaddr_xdp {
+        pub sxdp_family: crate::__u16,
+        pub sxdp_flags: crate::__u16,
+        pub sxdp_ifindex: crate::__u32,
+        pub sxdp_queue_id: crate::__u32,
+        pub sxdp_shared_umem_fd: crate::__u32,
+    }
+
+    pub struct xdp_ring_offset {
+        pub producer: crate::__u64,
+        pub consumer: crate::__u64,
+        pub desc: crate::__u64,
+        pub flags: crate::__u64,
+    }
+
+    pub struct xdp_mmap_offsets {
+        pub rx: xdp_ring_offset,
+        pub tx: xdp_ring_offset,
+        pub fr: xdp_ring_offset,
+        pub cr: xdp_ring_offset,
+    }
+
+    pub struct xdp_ring_offset_v1 {
+        pub producer: crate::__u64,
+        pub consumer: crate::__u64,
+        pub desc: crate::__u64,
+    }
+
+    pub struct xdp_mmap_offsets_v1 {
+        pub rx: xdp_ring_offset_v1,
+        pub tx: xdp_ring_offset_v1,
+        pub fr: xdp_ring_offset_v1,
+        pub cr: xdp_ring_offset_v1,
+    }
+
+    pub struct xdp_umem_reg {
+        pub addr: crate::__u64,
+        pub len: crate::__u64,
+        pub chunk_size: crate::__u32,
+        pub headroom: crate::__u32,
+        pub flags: crate::__u32,
+        pub tx_metadata_len: crate::__u32,
+    }
+
+    pub struct xdp_umem_reg_v1 {
+        pub addr: crate::__u64,
+        pub len: crate::__u64,
+        pub chunk_size: crate::__u32,
+        pub headroom: crate::__u32,
+    }
+
+    pub struct xdp_statistics {
+        pub rx_dropped: crate::__u64,
+        pub rx_invalid_descs: crate::__u64,
+        pub tx_invalid_descs: crate::__u64,
+        pub rx_ring_full: crate::__u64,
+        pub rx_fill_ring_empty_descs: crate::__u64,
+        pub tx_ring_empty_descs: crate::__u64,
+    }
+
+    pub struct xdp_statistics_v1 {
+        pub rx_dropped: crate::__u64,
+        pub rx_invalid_descs: crate::__u64,
+        pub tx_invalid_descs: crate::__u64,
+    }
+
+    pub struct xdp_options {
+        pub flags: crate::__u32,
+    }
+
+    pub struct xdp_desc {
+        pub addr: crate::__u64,
+        pub len: crate::__u32,
+        pub options: crate::__u32,
+    }
+
     pub struct xsk_tx_metadata_completion {
         pub tx_timestamp: crate::__u64,
     }
@@ -1665,13 +1754,11 @@ s_no_extra_traits! {
     }
 
     // linux/ptp_clock.h
-    #[allow(missing_debug_implementations)]
     pub union __c_anonymous_ptp_perout_request_1 {
         pub start: ptp_clock_time,
         pub phase: ptp_clock_time,
     }
 
-    #[allow(missing_debug_implementations)]
     pub union __c_anonymous_ptp_perout_request_2 {
         pub on: ptp_clock_time,
         pub rsv: [c_uint; 4],
@@ -1693,7 +1780,6 @@ s_no_extra_traits! {
         pub xsk_tx_metadata_union: __c_anonymous_xsk_tx_metadata_union,
     }
 
-    #[allow(missing_debug_implementations)]
     pub union __c_anonymous_xsk_tx_metadata_union {
         pub request: xsk_tx_metadata_request,
         pub completion: xsk_tx_metadata_completion,
@@ -1710,8 +1796,8 @@ cfg_if! {
             }
         }
         impl Eq for sockaddr_nl {}
-        impl crate::fmt::Debug for sockaddr_nl {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for sockaddr_nl {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("sockaddr_nl")
                     .field("nl_family", &self.nl_family)
                     .field("nl_pid", &self.nl_pid)
@@ -1719,8 +1805,8 @@ cfg_if! {
                     .finish()
             }
         }
-        impl crate::hash::Hash for sockaddr_nl {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for sockaddr_nl {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.nl_family.hash(state);
                 self.nl_pid.hash(state);
                 self.nl_groups.hash(state);
@@ -1743,8 +1829,8 @@ cfg_if! {
 
         impl Eq for dirent {}
 
-        impl crate::fmt::Debug for dirent {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for dirent {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("dirent")
                     .field("d_ino", &self.d_ino)
                     .field("d_off", &self.d_off)
@@ -1755,8 +1841,8 @@ cfg_if! {
             }
         }
 
-        impl crate::hash::Hash for dirent {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for dirent {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.d_ino.hash(state);
                 self.d_off.hash(state);
                 self.d_reclen.hash(state);
@@ -1781,8 +1867,8 @@ cfg_if! {
 
         impl Eq for dirent64 {}
 
-        impl crate::fmt::Debug for dirent64 {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for dirent64 {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("dirent64")
                     .field("d_ino", &self.d_ino)
                     .field("d_off", &self.d_off)
@@ -1793,8 +1879,8 @@ cfg_if! {
             }
         }
 
-        impl crate::hash::Hash for dirent64 {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for dirent64 {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.d_ino.hash(state);
                 self.d_off.hash(state);
                 self.d_reclen.hash(state);
@@ -1811,16 +1897,16 @@ cfg_if! {
 
         impl Eq for pthread_cond_t {}
 
-        impl crate::fmt::Debug for pthread_cond_t {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for pthread_cond_t {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("pthread_cond_t")
                     // FIXME: .field("size", &self.size)
                     .finish()
             }
         }
 
-        impl crate::hash::Hash for pthread_cond_t {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for pthread_cond_t {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.size.hash(state);
             }
         }
@@ -1833,16 +1919,16 @@ cfg_if! {
 
         impl Eq for pthread_mutex_t {}
 
-        impl crate::fmt::Debug for pthread_mutex_t {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for pthread_mutex_t {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("pthread_mutex_t")
                     // FIXME: .field("size", &self.size)
                     .finish()
             }
         }
 
-        impl crate::hash::Hash for pthread_mutex_t {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for pthread_mutex_t {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.size.hash(state);
             }
         }
@@ -1855,16 +1941,16 @@ cfg_if! {
 
         impl Eq for pthread_rwlock_t {}
 
-        impl crate::fmt::Debug for pthread_rwlock_t {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for pthread_rwlock_t {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("pthread_rwlock_t")
                     // FIXME: .field("size", &self.size)
                     .finish()
             }
         }
 
-        impl crate::hash::Hash for pthread_rwlock_t {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for pthread_rwlock_t {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.size.hash(state);
             }
         }
@@ -1877,16 +1963,16 @@ cfg_if! {
 
         impl Eq for pthread_barrier_t {}
 
-        impl crate::fmt::Debug for pthread_barrier_t {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for pthread_barrier_t {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("pthread_barrier_t")
                     .field("size", &self.size)
                     .finish()
             }
         }
 
-        impl crate::hash::Hash for pthread_barrier_t {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for pthread_barrier_t {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.size.hash(state);
             }
         }
@@ -1911,8 +1997,8 @@ cfg_if! {
 
         impl Eq for sockaddr_alg {}
 
-        impl crate::fmt::Debug for sockaddr_alg {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for sockaddr_alg {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("sockaddr_alg")
                     .field("salg_family", &self.salg_family)
                     .field("salg_type", &self.salg_type)
@@ -1923,8 +2009,8 @@ cfg_if! {
             }
         }
 
-        impl crate::hash::Hash for sockaddr_alg {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for sockaddr_alg {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.salg_family.hash(state);
                 self.salg_type.hash(state);
                 self.salg_feat.hash(state);
@@ -1942,8 +2028,8 @@ cfg_if! {
         }
         impl Eq for uinput_setup {}
 
-        impl crate::fmt::Debug for uinput_setup {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for uinput_setup {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("uinput_setup")
                     .field("id", &self.id)
                     .field("name", &&self.name[..])
@@ -1952,8 +2038,8 @@ cfg_if! {
             }
         }
 
-        impl crate::hash::Hash for uinput_setup {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for uinput_setup {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.id.hash(state);
                 self.name.hash(state);
                 self.ff_effects_max.hash(state);
@@ -1973,8 +2059,8 @@ cfg_if! {
         }
         impl Eq for uinput_user_dev {}
 
-        impl crate::fmt::Debug for uinput_user_dev {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for uinput_user_dev {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("uinput_setup")
                     .field("name", &&self.name[..])
                     .field("id", &self.id)
@@ -1987,8 +2073,8 @@ cfg_if! {
             }
         }
 
-        impl crate::hash::Hash for uinput_user_dev {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for uinput_user_dev {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.name.hash(state);
                 self.id.hash(state);
                 self.ff_effects_max.hash(state);
@@ -2008,8 +2094,8 @@ cfg_if! {
             }
         }
         impl Eq for mq_attr {}
-        impl crate::fmt::Debug for mq_attr {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for mq_attr {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("mq_attr")
                     .field("mq_flags", &self.mq_flags)
                     .field("mq_maxmsg", &self.mq_maxmsg)
@@ -2018,60 +2104,32 @@ cfg_if! {
                     .finish()
             }
         }
-        impl crate::hash::Hash for mq_attr {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for mq_attr {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.mq_flags.hash(state);
                 self.mq_maxmsg.hash(state);
                 self.mq_msgsize.hash(state);
                 self.mq_curmsgs.hash(state);
             }
         }
-        impl crate::fmt::Debug for __c_anonymous_ifr_ifru {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
-                f.debug_struct("ifr_ifru")
-                    .field("ifru_addr", unsafe { &self.ifru_addr })
-                    .field("ifru_dstaddr", unsafe { &self.ifru_dstaddr })
-                    .field("ifru_broadaddr", unsafe { &self.ifru_broadaddr })
-                    .field("ifru_netmask", unsafe { &self.ifru_netmask })
-                    .field("ifru_hwaddr", unsafe { &self.ifru_hwaddr })
-                    .field("ifru_flags", unsafe { &self.ifru_flags })
-                    .field("ifru_ifindex", unsafe { &self.ifru_ifindex })
-                    .field("ifru_metric", unsafe { &self.ifru_metric })
-                    .field("ifru_mtu", unsafe { &self.ifru_mtu })
-                    .field("ifru_map", unsafe { &self.ifru_map })
-                    .field("ifru_slave", unsafe { &self.ifru_slave })
-                    .field("ifru_newname", unsafe { &self.ifru_newname })
-                    .field("ifru_data", unsafe { &self.ifru_data })
-                    .finish()
-            }
-        }
-        impl crate::fmt::Debug for ifreq {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for ifreq {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("ifreq")
                     .field("ifr_name", &self.ifr_name)
                     .field("ifr_ifru", &self.ifr_ifru)
                     .finish()
             }
         }
-
-        impl crate::fmt::Debug for __c_anonymous_ifc_ifcu {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
-                f.debug_struct("ifr_ifru")
-                    .field("ifcu_buf", unsafe { &self.ifcu_buf })
-                    .field("ifcu_req", unsafe { &self.ifcu_req })
-                    .finish()
-            }
-        }
-        impl crate::fmt::Debug for ifconf {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for ifconf {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("ifconf")
                     .field("ifc_len", &self.ifc_len)
                     .field("ifc_ifcu", &self.ifc_ifcu)
                     .finish()
             }
         }
-        impl crate::fmt::Debug for hwtstamp_config {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for hwtstamp_config {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("hwtstamp_config")
                     .field("flags", &self.flags)
                     .field("tx_type", &self.tx_type)
@@ -2087,16 +2145,16 @@ cfg_if! {
             }
         }
         impl Eq for hwtstamp_config {}
-        impl crate::hash::Hash for hwtstamp_config {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for hwtstamp_config {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.flags.hash(state);
                 self.tx_type.hash(state);
                 self.rx_filter.hash(state);
             }
         }
 
-        impl crate::fmt::Debug for sched_attr {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for sched_attr {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("sched_attr")
                     .field("size", &self.size)
                     .field("sched_policy", &self.sched_policy)
@@ -2122,8 +2180,8 @@ cfg_if! {
             }
         }
         impl Eq for sched_attr {}
-        impl crate::hash::Hash for sched_attr {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for sched_attr {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 self.size.hash(state);
                 self.sched_policy.hash(state);
                 self.sched_flags.hash(state);
@@ -2135,33 +2193,8 @@ cfg_if! {
             }
         }
 
-        impl crate::fmt::Debug for iwreq_data {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
-                f.debug_struct("iwreq_data")
-                    .field("name", unsafe { &self.name })
-                    .field("essid", unsafe { &self.essid })
-                    .field("nwid", unsafe { &self.nwid })
-                    .field("freq", unsafe { &self.freq })
-                    .field("sens", unsafe { &self.sens })
-                    .field("bitrate", unsafe { &self.bitrate })
-                    .field("txpower", unsafe { &self.txpower })
-                    .field("rts", unsafe { &self.rts })
-                    .field("frag", unsafe { &self.frag })
-                    .field("mode", unsafe { &self.mode })
-                    .field("retry", unsafe { &self.retry })
-                    .field("encoding", unsafe { &self.encoding })
-                    .field("power", unsafe { &self.power })
-                    .field("qual", unsafe { &self.qual })
-                    .field("ap_addr", unsafe { &self.ap_addr })
-                    .field("addr", unsafe { &self.addr })
-                    .field("param", unsafe { &self.param })
-                    .field("data", unsafe { &self.data })
-                    .finish()
-            }
-        }
-
-        impl crate::fmt::Debug for iw_event {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for iw_event {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("iw_event")
                     .field("len", &self.len)
                     .field("cmd", &self.cmd)
@@ -2170,16 +2203,8 @@ cfg_if! {
             }
         }
 
-        impl crate::fmt::Debug for __c_anonymous_iwreq {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
-                f.debug_struct("__c_anonymous_iwreq")
-                    .field("ifrn_name", unsafe { &self.ifrn_name })
-                    .finish()
-            }
-        }
-
-        impl crate::fmt::Debug for iwreq {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
+        impl fmt::Debug for iwreq {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.debug_struct("iwreq")
                     .field("ifr_ifrn", &self.ifr_ifrn)
                     .field("u", &self.u)
@@ -2731,6 +2756,7 @@ pub const IFA_BROADCAST: c_ushort = 4;
 pub const IFA_ANYCAST: c_ushort = 5;
 pub const IFA_CACHEINFO: c_ushort = 6;
 pub const IFA_MULTICAST: c_ushort = 7;
+pub const IFA_FLAGS: c_ushort = 8;
 
 pub const IFA_F_SECONDARY: u32 = 0x01;
 pub const IFA_F_TEMPORARY: u32 = 0x01;
@@ -2741,6 +2767,10 @@ pub const IFA_F_HOMEADDRESS: u32 = 0x10;
 pub const IFA_F_DEPRECATED: u32 = 0x20;
 pub const IFA_F_TENTATIVE: u32 = 0x40;
 pub const IFA_F_PERMANENT: u32 = 0x80;
+pub const IFA_F_MANAGETEMPADDR: u32 = 0x100;
+pub const IFA_F_NOPREFIXROUTE: u32 = 0x200;
+pub const IFA_F_MCAUTOJOIN: u32 = 0x400;
+pub const IFA_F_STABLE_PRIVACY: u32 = 0x800;
 
 // linux/if_link.h
 pub const IFLA_UNSPEC: c_ushort = 0;
@@ -4201,11 +4231,11 @@ pub const IW_PMKID_CAND_PREAUTH: c_ulong = 0x00000001;
 
 pub const IW_EV_LCP_PK_LEN: usize = 4;
 
-pub const IW_EV_CHAR_PK_LEN: usize = 20; // IW_EV_LCP_PK_LEN + ::IFNAMSIZ;
+pub const IW_EV_CHAR_PK_LEN: usize = 20; // IW_EV_LCP_PK_LEN + crate::IFNAMSIZ;
 pub const IW_EV_UINT_PK_LEN: usize = 8; // IW_EV_LCP_PK_LEN + size_of::<u32>();
 pub const IW_EV_FREQ_PK_LEN: usize = 12; // IW_EV_LCP_PK_LEN + size_of::<iw_freq>();
 pub const IW_EV_PARAM_PK_LEN: usize = 12; // IW_EV_LCP_PK_LEN + size_of::<iw_param>();
-pub const IW_EV_ADDR_PK_LEN: usize = 20; // IW_EV_LCP_PK_LEN + size_of::<::sockaddr>();
+pub const IW_EV_ADDR_PK_LEN: usize = 20; // IW_EV_LCP_PK_LEN + size_of::<crate::sockaddr>();
 pub const IW_EV_QUAL_PK_LEN: usize = 8; // IW_EV_LCP_PK_LEN + size_of::<iw_quality>();
 pub const IW_EV_POINT_PK_LEN: usize = 8; // IW_EV_LCP_PK_LEN + 4;
 
@@ -4692,6 +4722,7 @@ pub const UDP_NO_CHECK6_RX: c_int = 102;
 
 // include/uapi/linux/mman.h
 pub const MAP_SHARED_VALIDATE: c_int = 0x3;
+pub const MAP_DROPPABLE: c_int = 0x8;
 
 // include/uapi/asm-generic/mman-common.h
 pub const MAP_FIXED_NOREPLACE: c_int = 0x100000;
@@ -5592,31 +5623,75 @@ pub const NET_DCCP: c_int = 20;
 pub const NET_IRDA: c_int = 412;
 
 // include/linux/sched.h
+/// I'm a virtual CPU.
 pub const PF_VCPU: c_int = 0x00000001;
+/// I am an IDLE thread.
 pub const PF_IDLE: c_int = 0x00000002;
+/// Getting shut down.
 pub const PF_EXITING: c_int = 0x00000004;
+/// Coredumps should ignore this task.
 pub const PF_POSTCOREDUMP: c_int = 0x00000008;
+/// Task is an IO worker.
 pub const PF_IO_WORKER: c_int = 0x00000010;
+/// I'm a workqueue worker.
 pub const PF_WQ_WORKER: c_int = 0x00000020;
+/// Forked but didn't exec.
 pub const PF_FORKNOEXEC: c_int = 0x00000040;
+/// Process policy on mce errors.
 pub const PF_MCE_PROCESS: c_int = 0x00000080;
+/// Used super-user privileges.
 pub const PF_SUPERPRIV: c_int = 0x00000100;
+/// Dumped core.
 pub const PF_DUMPCORE: c_int = 0x00000200;
+/// Killed by a signal.
 pub const PF_SIGNALED: c_int = 0x00000400;
+/// Allocating memory to free memory.
+///
+/// See `memalloc_noreclaim_save()`.
 pub const PF_MEMALLOC: c_int = 0x00000800;
+/// `set_user()` noticed that `RLIMIT_NPROC` was exceeded.
 pub const PF_NPROC_EXCEEDED: c_int = 0x00001000;
+/// If unset the fpu must be initialized before use.
 pub const PF_USED_MATH: c_int = 0x00002000;
+/// Kernel thread cloned from userspace thread.
 pub const PF_USER_WORKER: c_int = 0x00004000;
+/// This thread should not be frozen.
 pub const PF_NOFREEZE: c_int = 0x00008000;
+/// I am `kswapd`.
 pub const PF_KSWAPD: c_int = 0x00020000;
+/// All allocations inherit `GFP_NOFS`.
+///
+/// See `memalloc_nfs_save()`.
 pub const PF_MEMALLOC_NOFS: c_int = 0x00040000;
+/// All allocations inherit `GFP_NOIO`.
+///
+/// See `memalloc_noio_save()`.
 pub const PF_MEMALLOC_NOIO: c_int = 0x00080000;
+/// Throttle writes only against the bdi I write to, I am cleaning
+/// dirty pages from some other bdi.
 pub const PF_LOCAL_THROTTLE: c_int = 0x00100000;
+/// I am a kernel thread.
 pub const PF_KTHREAD: c_int = 0x00200000;
+/// Randomize virtual address space.
 pub const PF_RANDOMIZE: c_int = 0x00400000;
+/// Userland is not allowed to meddle with `cpus_mask`.
 pub const PF_NO_SETAFFINITY: c_int = 0x04000000;
+/// Early kill for mce process policy.
 pub const PF_MCE_EARLY: c_int = 0x08000000;
+/// Allocations constrained to zones which allow long term pinning.
+///
+/// See `memalloc_pin_save()`.
 pub const PF_MEMALLOC_PIN: c_int = 0x10000000;
+/// Plug has ts that needs updating.
+pub const PF_BLOCK_TS: c_int = 0x20000000;
+/// This thread called `freeze_processes()` and should not be frozen.
+pub const PF_SUSPEND_TASK: c_int = PF_SUSPEND_TASK_UINT as _;
+// The used value is the highest possible bit fitting on 32 bits, so directly
+// defining it as a signed integer causes the compiler to report an overflow.
+// Use instead a private intermediary that assuringly has the correct type and
+// cast it where necessary to the wanted final type, which preserves the
+// desired information as-is in terms of integer representation.
+const PF_SUSPEND_TASK_UINT: c_uint = 0x80000000;
 
 pub const CSIGNAL: c_int = 0x000000ff;
 
@@ -5641,13 +5716,47 @@ pub const SCHED_FLAG_UTIL_CLAMP_MIN: c_int = 0x20;
 pub const SCHED_FLAG_UTIL_CLAMP_MAX: c_int = 0x40;
 
 // linux/if_xdp.h
-pub const XDP_UMEM_TX_SW_CSUM: __u32 = 1 << 1;
-pub const XDP_UMEM_TX_METADATA_LEN: __u32 = 1 << 2;
+pub const XDP_SHARED_UMEM: crate::__u16 = 1 << 0;
+pub const XDP_COPY: crate::__u16 = 1 << 1;
+pub const XDP_ZEROCOPY: crate::__u16 = 1 << 2;
+pub const XDP_USE_NEED_WAKEUP: crate::__u16 = 1 << 3;
+pub const XDP_USE_SG: crate::__u16 = 1 << 4;
 
-pub const XDP_TXMD_FLAGS_TIMESTAMP: __u32 = 1 << 0;
-pub const XDP_TXMD_FLAGS_CHECKSUM: __u32 = 1 << 1;
+pub const XDP_UMEM_UNALIGNED_CHUNK_FLAG: crate::__u32 = 1 << 0;
 
-pub const XDP_TX_METADATA: __u32 = 1 << 1;
+pub const XDP_RING_NEED_WAKEUP: crate::__u32 = 1 << 0;
+
+pub const XDP_MMAP_OFFSETS: c_int = 1;
+pub const XDP_RX_RING: c_int = 2;
+pub const XDP_TX_RING: c_int = 3;
+pub const XDP_UMEM_REG: c_int = 4;
+pub const XDP_UMEM_FILL_RING: c_int = 5;
+pub const XDP_UMEM_COMPLETION_RING: c_int = 6;
+pub const XDP_STATISTICS: c_int = 7;
+pub const XDP_OPTIONS: c_int = 8;
+
+pub const XDP_OPTIONS_ZEROCOPY: crate::__u32 = 1 << 0;
+
+pub const XDP_PGOFF_RX_RING: crate::off_t = 0;
+pub const XDP_PGOFF_TX_RING: crate::off_t = 0x80000000;
+pub const XDP_UMEM_PGOFF_FILL_RING: crate::c_ulonglong = 0x100000000;
+pub const XDP_UMEM_PGOFF_COMPLETION_RING: crate::c_ulonglong = 0x180000000;
+
+pub const XSK_UNALIGNED_BUF_OFFSET_SHIFT: crate::c_int = 48;
+pub const XSK_UNALIGNED_BUF_ADDR_MASK: crate::c_ulonglong =
+    (1 << XSK_UNALIGNED_BUF_OFFSET_SHIFT) - 1;
+
+pub const XDP_PKT_CONTD: crate::__u32 = 1 << 0;
+
+pub const XDP_UMEM_TX_SW_CSUM: crate::__u32 = 1 << 1;
+pub const XDP_UMEM_TX_METADATA_LEN: crate::__u32 = 1 << 2;
+
+pub const XDP_TXMD_FLAGS_TIMESTAMP: crate::__u32 = 1 << 0;
+pub const XDP_TXMD_FLAGS_CHECKSUM: crate::__u32 = 1 << 1;
+
+pub const XDP_TX_METADATA: crate::__u32 = 1 << 1;
+
+pub const SOL_XDP: c_int = 283;
 
 // linux/mount.h
 pub const MOUNT_ATTR_RDONLY: crate::__u64 = 0x00000001;
@@ -5798,8 +5907,8 @@ f! {
     }
 
     pub fn CPU_ALLOC_SIZE(count: c_int) -> size_t {
-        let _dummy: cpu_set_t = crate::mem::zeroed();
-        let size_in_bits = 8 * crate::mem::size_of_val(&_dummy.bits[0]);
+        let _dummy: cpu_set_t = mem::zeroed();
+        let size_in_bits = 8 * mem::size_of_val(&_dummy.bits[0]);
         ((count as size_t + size_in_bits - 1) / 8) as size_t
     }
 
@@ -5810,28 +5919,28 @@ f! {
     }
 
     pub fn CPU_SET(cpu: usize, cpuset: &mut cpu_set_t) -> () {
-        let size_in_bits = 8 * crate::mem::size_of_val(&cpuset.bits[0]); // 32, 64 etc
+        let size_in_bits = 8 * mem::size_of_val(&cpuset.bits[0]); // 32, 64 etc
         let (idx, offset) = (cpu / size_in_bits, cpu % size_in_bits);
         cpuset.bits[idx] |= 1 << offset;
         ()
     }
 
     pub fn CPU_CLR(cpu: usize, cpuset: &mut cpu_set_t) -> () {
-        let size_in_bits = 8 * crate::mem::size_of_val(&cpuset.bits[0]); // 32, 64 etc
+        let size_in_bits = 8 * mem::size_of_val(&cpuset.bits[0]); // 32, 64 etc
         let (idx, offset) = (cpu / size_in_bits, cpu % size_in_bits);
         cpuset.bits[idx] &= !(1 << offset);
         ()
     }
 
     pub fn CPU_ISSET(cpu: usize, cpuset: &cpu_set_t) -> bool {
-        let size_in_bits = 8 * crate::mem::size_of_val(&cpuset.bits[0]);
+        let size_in_bits = 8 * mem::size_of_val(&cpuset.bits[0]);
         let (idx, offset) = (cpu / size_in_bits, cpu % size_in_bits);
         0 != (cpuset.bits[idx] & (1 << offset))
     }
 
     pub fn CPU_COUNT_S(size: usize, cpuset: &cpu_set_t) -> c_int {
         let mut s: u32 = 0;
-        let size_of_mask = crate::mem::size_of_val(&cpuset.bits[0]);
+        let size_of_mask = mem::size_of_val(&cpuset.bits[0]);
         for i in cpuset.bits[..(size / size_of_mask)].iter() {
             s += i.count_ones();
         }

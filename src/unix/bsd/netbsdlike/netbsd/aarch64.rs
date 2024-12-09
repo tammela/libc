@@ -1,4 +1,5 @@
-use crate::{c_int, c_uchar, c_uint, PT_FIRSTMACH};
+use crate::prelude::*;
+use crate::PT_FIRSTMACH;
 
 pub type c_long = i64;
 pub type c_ulong = u64;
@@ -53,21 +54,8 @@ cfg_if! {
             }
         }
         impl Eq for __c_anonymous__freg {}
-        impl crate::fmt::Debug for __c_anonymous__freg {
-            fn fmt(&self, f: &mut crate::fmt::Formatter) -> crate::fmt::Result {
-                unsafe {
-                    f.debug_struct("__c_anonymous__freg")
-                        .field("__b8", &self.__b8)
-                        .field("__h16", &self.__h16)
-                        .field("__s32", &self.__s32)
-                        .field("__d64", &self.__d64)
-                        .field("__q128", &self.__q128)
-                        .finish()
-                }
-            }
-        }
-        impl crate::hash::Hash for __c_anonymous__freg {
-            fn hash<H: crate::hash::Hasher>(&self, state: &mut H) {
+        impl hash::Hash for __c_anonymous__freg {
+            fn hash<H: hash::Hasher>(&self, state: &mut H) {
                 unsafe {
                     self.__b8.hash(state);
                     self.__h16.hash(state);
@@ -80,7 +68,7 @@ cfg_if! {
     }
 }
 
-pub(crate) const _ALIGNBYTES: usize = crate::mem::size_of::<c_int>() - 1;
+pub(crate) const _ALIGNBYTES: usize = mem::size_of::<c_int>() - 1;
 
 pub const PT_GETREGS: c_int = PT_FIRSTMACH + 0;
 pub const PT_SETREGS: c_int = PT_FIRSTMACH + 1;

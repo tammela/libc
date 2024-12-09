@@ -3,7 +3,7 @@
 //! More functions and definitions can be found in the more specific modules
 //! according to the platform in question.
 
-use crate::c_void;
+use crate::prelude::*;
 
 pub type c_schar = i8;
 pub type c_uchar = u8;
@@ -66,6 +66,7 @@ s! {
         pub modtime: time_t,
     }
 
+    // FIXME(time): Needs updates at least for glibc _TIME_BITS=64
     pub struct timeval {
         pub tv_sec: time_t,
         pub tv_usec: suseconds_t,
@@ -681,6 +682,7 @@ extern "C" {
     pub fn memcpy(dest: *mut c_void, src: *const c_void, n: size_t) -> *mut c_void;
     pub fn memmove(dest: *mut c_void, src: *const c_void, n: size_t) -> *mut c_void;
     pub fn memset(dest: *mut c_void, c: c_int, n: size_t) -> *mut c_void;
+    pub fn memccpy(dest: *mut c_void, src: *const c_void, c: c_int, n: size_t) -> *mut c_void;
 }
 
 extern "C" {

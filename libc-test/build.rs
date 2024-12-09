@@ -42,6 +42,8 @@ fn do_cc() {
         || target.contains("l4re")
         || target.contains("android")
         || target.contains("emscripten")
+        || target.contains("solaris")
+        || target.contains("illumos")
     {
         cc::Build::new().file("src/sigrt.c").compile("sigrt");
     }
@@ -2001,9 +2003,9 @@ fn test_android(target: &str) {
             | "PF_IO_WORKER"
             | "PF_WQ_WORKER"
             | "PF_FORKNOEXEC"
+            | "PF_MCE_PROCESS"
             | "PF_SUPERPRIV"
             | "PF_DUMPCORE"
-            | "PF_MCE_PROCESS"
             | "PF_SIGNALED"
             | "PF_MEMALLOC"
             | "PF_NPROC_EXCEEDED"
@@ -2019,6 +2021,7 @@ fn test_android(target: &str) {
             | "PF_NO_SETAFFINITY"
             | "PF_MCE_EARLY"
             | "PF_MEMALLOC_PIN"
+            | "PF_BLOCK_TS"
             | "PF_SUSPEND_TASK" => true,
 
             _ => false,
@@ -4238,11 +4241,16 @@ fn test_linux(target: &str) {
             | "PF_RANDOMIZE"
             | "PF_NO_SETAFFINITY"
             | "PF_MCE_EARLY"
-            | "PF_MEMALLOC_PIN" => true,
+            | "PF_MEMALLOC_PIN"
+            | "PF_BLOCK_TS"
+            | "PF_SUSPEND_TASK" => true,
 
             // FIXME: Requires >= 6.9 kernel headers.
             "EPIOCSPARAMS"
             | "EPIOCGPARAMS" => true,
+
+            // FIXME: Requires >= 6.11 kernel headers.
+            "MAP_DROPPABLE" => true,
 
             _ => false,
         }
@@ -4663,9 +4671,16 @@ fn test_linux_like_apis(target: &str) {
 }
 
 fn which_freebsd() -> Option<i32> {
+    if let Ok(version) = env::var("RUST_LIBC_UNSTABLE_FREEBSD_VERSION") {
+        let vers = version.parse().unwrap();
+        println!("cargo:warning=setting FreeBSD version to {vers}");
+        return Some(vers);
+    }
+
     let output = std::process::Command::new("freebsd-version")
         .output()
         .ok()?;
+
     if !output.status.success() {
         return None;
     }

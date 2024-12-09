@@ -17,6 +17,7 @@ jobs:
   style_check:
     name: Style check
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
@@ -35,14 +36,27 @@ jobs:
           - toolchain: beta
             os: ubuntu-24.04
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     env:
       TOOLCHAIN: ${{ matrix.toolchain }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         run: ./ci/install-rust.sh
+
+      # FIXME(ci): These `du` statements are temporary for debugging cache
+      - name: Target size before restoring cache
+        run: du -sh target | sort -k 2 || true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.toolchain }}
+      - name: Target size after restoring cache
+        run: du -sh target | sort -k 2 || true
+
       - name: Execute build.sh
         run: ./ci/verify-build.sh
+      - name: Target size after job completion
+        run: du -sh target | sort -k 2
 
   test_tier1:
     name: Test tier1
@@ -72,18 +86,32 @@ jobs:
           - target: i686-pc-windows-msvc
             os: windows-2022
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     env:
       TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         run: ./ci/install-rust.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
       - name: Run natively
         if: "!matrix.docker"
         run: ./ci/run.sh ${{ matrix.target }}
       - name: Run in Docker
         if: "matrix.docker"
         run: ./ci/run-docker.sh ${{ matrix.target }}
+
+      - name: Create CI artifacts
+        if: always()
+        run: ./ci/create-artifacts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE_NAME }}-${{ matrix.target }}
+          path: ${{ env.ARCHIVE_PATH }}
+          retention-days: 5
 
   test_tier2:
     name: Test tier2
@@ -122,14 +150,28 @@ jobs:
           # FIXME: It seems some items in `src/unix/mod.rs`
           # aren't defined on redox actually.
           # - x86_64-unknown-redox
+    timeout-minutes: 25
     env:
       TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain
         run: ./ci/install-rust.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
       - name: Execute run-docker.sh
         run: ./ci/run-docker.sh ${{ matrix.target }}
+
+      - name: Create CI artifacts
+        if: always()
+        run: ./ci/create-artifacts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE_NAME }}-${{ matrix.target }}
+          path: ${{ env.ARCHIVE_PATH }}
+          retention-days: 5
 
   test_tier2_vm:
     name: Test tier2 VM
@@ -140,6 +182,7 @@ jobs:
       matrix:
         target:
           - x86_64-pc-solaris
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: test on Solaris
@@ -163,6 +206,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       TOOLCHAIN: nightly
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust toolchain

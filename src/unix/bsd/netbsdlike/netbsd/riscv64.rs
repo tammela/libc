@@ -1,6 +1,6 @@
 use PT_FIRSTMACH;
 
-use crate::{c_double, c_int};
+use crate::prelude::*;
 
 pub type c_long = i64;
 pub type c_ulong = u64;
@@ -14,19 +14,18 @@ s! {
     pub struct mcontext_t {
         pub __gregs: __gregset,
         pub __fregs: __fpregset,
-        __spare: [::__greg_t; 7],
+        __spare: [crate::__greg_t; 7],
     }
 }
 
 s_no_extra_traits! {
-    #[cfg_attr(feature = "extra_traits", allow(missing_debug_implementations))]
     pub union __fpreg {
         pub u_u64: u64,
         pub u_d: c_double,
     }
 }
 
-pub(crate) const _ALIGNBYTES: usize = ::mem::size_of::<c_long>() - 1;
+pub(crate) const _ALIGNBYTES: usize = mem::size_of::<c_long>() - 1;
 
 pub const PT_GETREGS: c_int = PT_FIRSTMACH + 0;
 pub const PT_SETREGS: c_int = PT_FIRSTMACH + 1;

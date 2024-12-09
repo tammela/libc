@@ -28,9 +28,16 @@ if [ "$TOOLCHAIN" = "nightly" ] ; then
     rustup component add rust-src
 fi
 
+# Print GHA workflow commands
+echo_if_ci() {
+    # Discard stderr so the "set -x" trace doesn't show up
+    { [ -n "${CI:-}" ] && echo "$1"; } 2> /dev/null
+}
+
+# Run the tests for a specific target
 test_target() {
-    target="${1}"
-    no_dist="${2:-0}"
+    target="$1"
+    no_dist="$2"
 
     RUSTFLAGS="${RUSTFLAGS:-}"
 
@@ -64,10 +71,43 @@ test_target() {
     $cmd
     $cmd --features extra_traits
 
+    if [ "$os" = "linux" ]; then
+        # Test with the equivalent of __USE_TIME_BITS64
+        RUST_LIBC_UNSTABLE_LINUX_TIME_BITS64=1 $cmd
+    fi
+
     # Test again without default features, i.e. without "std"
     $cmd --no-default-features
     $cmd --no-default-features --features extra_traits
+
+    # Ensure the crate will build when used with `std`
+    if [ "$rust" = "nightly" ]; then
+        $cmd --no-default-features --features rustc-dep-of-std
+    fi
+
+    # For tier 2 freebsd targets, check with the different versions we support
+    # if on nightly or stable
+    case "$rust-$target" in
+        stable-x86_64-*freebsd*) do_freebsd_checks=1 ;;
+        nightly-i686*freebsd*) do_freebsd_checks=1 ;;
+    esac
+    
+    if [ -n "${do_freebsd_checks:-}" ]; then
+        for version in $freebsd_versions; do
+            export RUST_LIBC_UNSTABLE_FREEBSD_VERSION="$version"
+            $cmd
+            $cmd --no-default-features
+        done
+    fi
 }
+
+freebsd_versions="\
+11 \
+12 \
+13 \
+14 \
+15 \
+"
 
 rust_linux_targets="\
 aarch64-linux-android \
@@ -236,44 +276,47 @@ case "$rust" in
     *) supports_wasi_pn=0 ;;
 esac
 
-for target in $targets; do
+some_tests_run=0
+
+# Apply the `FILTER` variable, do OS-specific tasks, and run a target
+filter_and_run() {
+    target="$1"
+    no_dist="${2:-0}"
+
     if echo "$target" | grep -q "$filter"; then
         if [ "$os" = "windows" ]; then
             TARGET="$target" ./ci/install-rust.sh
-            test_target "$target"
-        else
-            # `wasm32-wasip1` was renamed from `wasm32-wasi`
-            if [ "$target" = "wasm32-wasip1" ] && [ "$supports_wasi_pn" = "0" ]; then
-                target="wasm32-wasi"
-            fi
-
-            # `wasm32-wasip2` only exists in recent versions of Rust
-            if [ "$target" = "wasm32-wasip2" ] && [ "$supports_wasi_pn" = "0" ]; then
-                continue
-            fi
-            
-            test_target "$target"
         fi
 
-        test_run=1
+        # `wasm32-wasip1` was renamed from `wasm32-wasi`
+        if [ "$target" = "wasm32-wasip1" ] && [ "$supports_wasi_pn" = "0" ]; then
+            target="wasm32-wasi"
+        fi
+
+        # `wasm32-wasip2` only exists in recent versions of Rust
+        if [ "$target" = "wasm32-wasip2" ] && [ "$supports_wasi_pn" = "0" ]; then
+            return
+        fi
+            
+        test_target "$target" "$no_dist"
+        some_tests_run=1
     fi
+}
+
+for target in $targets; do
+    echo_if_ci "::group::Target: $target"
+    filter_and_run "$target"
+    echo_if_ci "::endgroup::"
 done
 
 for target in ${no_dist_targets:-}; do
-    if echo "$target" | grep -q "$filter"; then
-        if [ "$os" = "windows" ]; then
-            TARGET="$target" ./ci/install-rust.sh
-            test_target "$target" 1
-        else
-            test_target "$target" 1
-        fi
-
-        test_run=1
-    fi
+    echo_if_ci "::group::Target: $target"
+    filter_and_run "$target" 1
+    echo_if_ci "::endgroup::"
 done
 
 # Make sure we didn't accidentally filter everything
-if [ "${test_run:-}" != 1 ]; then
+if [ "$some_tests_run" != 1 ]; then
     echo "No tests were run"
     exit 1
 fi

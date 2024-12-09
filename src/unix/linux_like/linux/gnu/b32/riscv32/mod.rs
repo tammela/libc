@@ -1,8 +1,7 @@
 //! RISC-V-specific definitions for 32-bit linux-like values
 
-use crate::{
-    c_int, c_long, c_short, c_uint, c_ulong, c_ulonglong, c_ushort, c_void, off64_t, off_t, size_t,
-};
+use crate::prelude::*;
+use crate::{off64_t, off_t};
 
 pub type c_char = u8;
 pub type wchar_t = c_int;
@@ -213,7 +212,6 @@ s_no_extra_traits! {
         pub __fpregs: __riscv_mc_fp_state,
     }
 
-    #[allow(missing_debug_implementations)]
     pub union __riscv_mc_fp_state {
         pub __f: __riscv_mc_f_ext_state,
         pub __d: __riscv_mc_d_ext_state,
